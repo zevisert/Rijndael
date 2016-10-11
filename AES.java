@@ -10,7 +10,7 @@ public class AES extends rijndael
 	{
 		assert args.length == 3 : "Invalid number of arguments.";
 
-		// Prefer wokring with lists.
+		// Prefer working with lists.
 		List<String> argsList = Arrays.asList(args);
 		List<String> encryptCmds = Arrays.asList("e", "encrypt");
 		List<String> decryptCmds = Arrays.asList("d", "decrypt");
@@ -22,8 +22,8 @@ public class AES extends rijndael
 				// TODO: prepare encrypt here
 				byte[] key = new byte[16];
 				File file = null;
-
-				encrypt(key, file);
+				AES cypher = new AES();
+				cypher.encrypt(key, file);
 			}
 		}
 
@@ -34,21 +34,85 @@ public class AES extends rijndael
 				// TODO: prepare decrypt here
 				byte[] key = new byte[16];
 				File file = null;
-
-				decrypt(key, file);
+				
+				AES cypher = new AES();
+				cypher.decrypt(key, file);
 			}
 		}
 	}
 
-	public static void encrypt(byte[] key, File plaintext)
+	public void encrypt(byte[] key, File plaintext)
 	{
 		System.out.println(">>> encrypting");
 		assert false : "Not implemented";
+		
+		String s = "Stri"+
+				   "ng o"+
+				   "f 16"+
+				   "char";
+
+		byte[] test_data = s.getBytes();
+		
+		State state = new State(test_data);
+		// Key Expansion
+		// keyExpansion();
+		
+		state.addRoundKey(key);
+		
+		int numberOfRounds = 1;
+		
+		for(int round = 1; round <= numberOfRounds; ++round)
+		{
+			state.subBytes();
+			state.shiftRows();
+			state.mixColumns();
+			state.addRoundKey(key);
+		}
+		
+		// Final round
+		state.subBytes();
+		state.shiftRows();
+		state.addRoundKey(key);
+		
+		System.out.print("[");
+		for(byte b : state.data)
+		{
+			System.out.print(Integer.toHexString(Byte.toUnsignedInt(b)).toUpperCase() + ", ");
+		}
+		System.out.println("]");
 	}
 
-	public static void decrypt(byte[] key, File encrpyted)
+	public void decrypt(byte[] key, File encrpyted)
 	{
 		System.out.println("<<< decrpyting");
 		assert false : "Not implemented";
+		
+		byte[] test_data = {(byte)0xB5, 0x12, 0x59, 0x12, (byte)0xA1, 0x3E, 0x7D, 0x28, (byte)0x83, 0x7B, 0x27, 0x2B, (byte)0x89, 0x28, 0x54, (byte)0xAF};
+		
+		State state = new State(test_data);
+		// Key Expansion
+		// keyExpansion();
+		
+		state.addRoundKey(key);
+		
+		int numberOfRounds = 1;
+		
+		for(int round = 1; round <= numberOfRounds; ++round)
+		{
+			state.InverseShiftRows();
+			state.InverseSubBytes();
+			state.addRoundKey(key);
+			state.InverseMixColumns();
+		}
+		
+		// Final round
+
+		state.InverseShiftRows();
+		state.InverseSubBytes();
+
+		state.addRoundKey(key);
+		
+		String s = new String(state.data);
+		System.out.println(s);
 	}
 }
