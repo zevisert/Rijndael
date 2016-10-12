@@ -22,19 +22,42 @@ public class AES extends rijndael
 		
         //abstracting input method, encrypt and decrypt just taking in lists of strings (32 bytes each)
         //reading bytes was messing with new lines chars
-        File tmpfile=  new File(argsList.get(2));
+        File inputfile=  new File(argsList.get(2));
+        File keyfile=  new File(argsList.get(1));
         List<String> lines = null;
         List<byte[]> data = new ArrayList<byte[]>();
+        byte[] inputKey = null; 
+        
+        //read Key from inputfile
+        try
+        {
+            lines = Files.readAllLines(keyfile.toPath());
+            //should be 1 line.
+            for(String line : lines)
+            {
+            	line = line.replaceAll("\\s+", "");
+            	if (line.length() != 64)
+            	{
+            		throw new ValidationException("String not 64 bytes");
+            	}
+            	inputKey = bytesFromLine(line);
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+        
         
         // Get all lines and check their length
         try
         {
-            lines = Files.readAllLines(tmpfile.toPath());
+            lines = Files.readAllLines(inputfile.toPath());
             
             for(String line : lines)
             {
             	line = line.replaceAll("\\s+", "");
-            	System.out.println(line);
             	if (line.length() != 32)
             	{
             		throw new ValidationException("String not 32 bytes");
@@ -47,18 +70,15 @@ public class AES extends rijndael
             e.printStackTrace();
             System.exit(-1);
         }
-           
+        
+        
 		for(String s : encryptCmds)
 		{
 			if (s.equalsIgnoreCase(argsList.get(0)))
 			{
-				// TODO: prepare encrypt here
-				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-							   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
-				
 
 				AES cypher = new AES();
-				List<String> output = cypher.encrypt(key, data);
+				List<String> output = cypher.encrypt(inputKey, data);
 				
 				File outputFile = new File(new String(argsList.get(2) + ".enc"));
 				
@@ -80,12 +100,9 @@ public class AES extends rijndael
 		{
 			if (s.equalsIgnoreCase(argsList.get(0)))
 			{
-				// TODO: prepare decrypt here
-				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-						 	   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
 
 				AES cypher = new AES();
-				List<String> output = cypher.decrypt(key, data);
+				List<String> output = cypher.decrypt(inputKey, data);
 				
 				File outputFile = new File(new String(argsList.get(2) + ".dec"));
 				
@@ -107,7 +124,7 @@ public class AES extends rijndael
     private static byte[] bytesFromLine (String s)
     {        
         int len = s.length();
-        byte[] lineBytes = new byte[16];
+        byte[] lineBytes = new byte[len/2];
         for (int i = 0 ; i < len; i += 2 )    
         {
             lineBytes[i/2] = (byte)((Character.digit(s.charAt(i),16) << 4) + Character.digit(s.charAt(i+1), 16));
@@ -115,7 +132,6 @@ public class AES extends rijndael
           
         return lineBytes;
     }
-    
     
 	public static String bytesToHex(byte[] in) {
 	    final StringBuilder builder = new StringBuilder();
