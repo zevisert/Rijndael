@@ -1,12 +1,17 @@
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.xml.bind.ValidationException;
+
 public class AES extends rijndael
 {
-	public static void main (String[] args)
+	
+	public static void main (String[] args) throws ValidationException
 	{
 		assert args.length == 3 : "Invalid number of arguments.";
 
@@ -16,20 +21,58 @@ public class AES extends rijndael
 		List<String> decryptCmds = Arrays.asList("d", "decrypt");
 		
         //abstracting input method, encrypt and decrypt just taking in lists of strings (32 bytes each)
-        //reading bytes was messing with new lines chars 
+        //reading bytes was messing with new lines chars
         File tmpfile=  new File(argsList.get(2));
-        byte[] inputBytes = bytesFromLine("b51fdcd646acade9af7661ad66e0218d");
+        List<String> lines = null;
+        List<byte[]> data = new ArrayList<byte[]>();
         
+        // Get all lines and check their length
+        try
+        {
+            lines = Files.readAllLines(tmpfile.toPath());
+            
+            for(String line : lines)
+            {
+            	line = line.replaceAll("\\s+", "");
+            	System.out.println(line);
+            	if (line.length() != 32)
+            	{
+            		throw new ValidationException("String not 32 bytes");
+            	}
+            	data.add(bytesFromLine(line));
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+           
 		for(String s : encryptCmds)
 		{
 			if (s.equalsIgnoreCase(argsList.get(0)))
 			{
 				// TODO: prepare encrypt here
-				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+							   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+				
 
-				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.encrypt(key, inputBytes);
+				List<String> output = cypher.encrypt(key, data);
+				
+				File outputFile = new File(new String(argsList.get(2) + ".enc"));
+				
+				try (FileWriter writer = new FileWriter(outputFile))
+				{
+					for (String line : output)
+					{
+						writer.write(line);
+						writer.write('\n');
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 
@@ -38,11 +81,25 @@ public class AES extends rijndael
 			if (s.equalsIgnoreCase(argsList.get(0)))
 			{
 				// TODO: prepare decrypt here
-				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+				byte[] key = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+						 	   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
 
-				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.decrypt(key, inputBytes);
+				List<String> output = cypher.decrypt(key, data);
+				
+				File outputFile = new File(new String(argsList.get(2) + ".dec"));
+				
+				try (FileWriter writer = new FileWriter(outputFile))
+				{
+					for (String line : output)
+					{
+						writer.write(line);
+						writer.write('\n');
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 	}
@@ -68,54 +125,33 @@ public class AES extends rijndael
 	    return builder.toString();
 	}
 	
-	public void encrypt(byte[] key, byte[] inputBytes)
-	{
-        
+	public List<String> encrypt(byte[] key, List<byte[]> data)
+	{ 
 		System.out.println(">>> encrypting");
-		assert false : "Not implemented";
 		
         //for now just run this block every time, Keyexpansion and state recreation is getting call more than needed reduntant
         
-		/*for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)
+		KeyExpander ke = new KeyExpander(key);
+		List<String> output = new ArrayList<String>();
+		
+		for (byte[] block : data)
         {
-            //lines have 32 bytes, we are looking for 16 bytes.
-            byte[] chunk = chunks.get(chunkNum).getBytes();
-            //System.out.println(chunk);
-            byte[] subChunk1 = new byte[16];
-            
-            //first half
-            for (int i = 0; i < 16; ++i)
-            {
-                subChunk1[i] = (byte)chunk[i];
-            }
+            State state = new State(block);
+            state.keys = ke.keys;
+            encryptCore(state);
 		
-            //second half
-            byte[] subChunk2 = new byte[16];
-            for (int i = 0; i < 16; ++i)
-            {
-                subChunk2[i] = (byte)chunk[i+16];
-            }
-        
-            State state1 = new State(subChunk1);
-            state1.keyExpansion(key);
-            
-            State state2 = new State(subChunk2);
-            state2.keyExpansion(key);
-            
-            encryptCore(state1);
-            encryptCore(state2);
-		
-            System.out.println(bytesToHex(state1.data));
-            System.out.println(bytesToHex(state2.data));
+            System.out.println(bytesToHex(state.data));
+            output.add(bytesToHex(state.data));
         }
-*/
+		
+		return output;
 	}
     
-    //
     private void encryptCore(State state)
     {
+    	state.round = 0;
         state.addRoundKey(state.keys[state.round]);
-		int numberOfRounds = 10;
+		int numberOfRounds = 14;
 		
 		for(state.round = 1; state.round < numberOfRounds; ++state.round)
 		{
@@ -132,45 +168,31 @@ public class AES extends rijndael
     }
 
     
-	public void decrypt(byte[] key, byte[] inputBytes)
+	public List<String> decrypt(byte[] key, List<byte[]> data)
 	{
-		System.out.println("<<< decrpyting");
-		assert false : "Not implemented";
-        /*
-        for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)       
+		System.out.println(">>> decrypting");
+		
+        //for now just run this block every time, Keyexpansion and state recreation is getting call more than needed reduntant
+        
+		KeyExpander ke = new KeyExpander(key);
+		List<String> output = new ArrayList<String>();
+		
+		for (byte[] block : data)
         {
-            byte[] chunk = chunks.get(chunkNum).getBytes();
-            
-            byte[] subChunk1 = new byte[16];
-            for (int i = 0; i < 16; ++i)
-            {
-                subChunk1[i] = (byte)chunk[i];
-            }
+            State state = new State(block);
+            state.keys = ke.keys;
+            decryptCore(state);
 		
-            byte[] subChunk2 = new byte[16];
-            for (int i = 0; i < 16; ++i)
-            {
-                subChunk2[i] = (byte)chunk[i+16];
-            }
-            
-            State state1 = new State(subChunk1);
-            state1.keyExpansion(key);
-            
-            State state2 = new State(subChunk2);
-            state2.keyExpansion(key);
+            System.out.println(bytesToHex(state.data));
+            output.add(bytesToHex(state.data));
+        }
 		
-            decryptCore(state1);
-            decryptCore(state2);
-            
-            System.out.println(bytesToHex(state1.data));
-            System.out.println(bytesToHex(state2.data));
-		}
-        */
+		return output;
 	}
     
     private void decryptCore(State state)
     {
-         int numberOfRounds = 10;
+         int numberOfRounds = 14;
 					
             state.addRoundKey(state.keys[numberOfRounds]);
 		

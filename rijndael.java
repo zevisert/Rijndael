@@ -177,28 +177,13 @@ public class rijndael {
 
 	}
 
-	public class State
+	public class KeyExpander
 	{
-		int round;
-		byte[] data;
 		byte[][] keys;
-
-		public State(byte[] data)
+		
+		public KeyExpander(byte[] key)
 		{
-			this.round = 0;
-			this.data = new byte[16];
-			for(int i = 0; i < 16; ++i)
-			{
-				this.data[i] = data[i];
-			}
-		}
-
-		public void apply(byte[] data)
-		{
-			for(int i = 0; i < 16; ++i)
-			{
-				this.data[i] = data[i];
-			}
+			keyExpansion(key);
 		}
 		
 		private void keyExpansionCore(byte[] in, int round)
@@ -221,41 +206,116 @@ public class rijndael {
 		
 		public void keyExpansion(byte[] initialKey)
 		{
-			byte[] schedule = new byte[16 + 10*16];
+			byte[] schedule = new byte[32 + 14*16];
 			
 			// First 16 bytes are same as the key
-			for(int i = 0; i < 16; ++i)
+			for(int i = 0; i < 32; ++i)
 			{
 				schedule[i] = initialKey[i];
 			}
 			
-			int bytesGenerated = 16;
+			int bytesGenerated = 32;
 			int rconIteration = 1;
 			
 			
 			while( bytesGenerated < schedule.length)
 			{
 				byte[] temp = new byte[4];
+				// Assign previous 4 bytes to temp
 				for(int j = 0; j < 4; ++j)
 				{
 					temp[j] = schedule[j + bytesGenerated - 4];
 				}
 				
-				if (bytesGenerated % 16 == 0)
-					this.keyExpansionCore(temp, rconIteration++);
+				this.keyExpansionCore(temp, rconIteration++);
 				
 				for(int j = 0; j < 4; ++j)
 				{
-					schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 16] ^ temp[j]);
+					schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + j] ^ temp[j]);
 					bytesGenerated++;
+				}
+				
+				// Create the next 12 bytes
+				for (int j = 0; j < 3; ++j)
+				{
+					// Assign previous 4 bytes to temp
+					for(int k = 0; k < 4; ++k)
+					{
+						temp[k] = schedule[k + bytesGenerated - 4];
+					}
+					// XOR Group of next 4 bytes with previous
+					for(int k = 0; k < 4; ++k)
+					{
+						schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + k] ^ temp[k]);
+						bytesGenerated++;
+					}
+				}
+				
+				// Create the next 4 bytes
+				// Assign previous 4 bytes to temp
+				for(int j = 0; j < 4; ++j)
+				{
+					temp[j] = schedule[j + bytesGenerated - 4];
+				}
+				// S box each of these
+				for (int j = 0; j < 4; ++j)
+				{
+					temp[j] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(temp[j])];
+				}
+				
+				// XOR Group of next 4 bytes with previous
+				for(int j = 0; j < 4; ++j)
+				{
+					schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + j] ^ temp[j]);
+					bytesGenerated++;
+				}
+				
+				// Another 12 bytes in groups of 4
+				for (int j = 0; j < 3; ++j)
+				{
+					for(int k = 0; k < 4; ++k)
+					{
+						temp[k] = schedule[k + bytesGenerated - 4];
+					}
+					// XOR Group of next 4 bytes with previous
+					for(int k = 0; k < 4; ++k)
+					{
+						schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + k] ^ temp[k]);
+						bytesGenerated++;
+					}
 				}
 			}
 			
 			// copy 16 byte sections to keys
-			this.keys = new byte[11][16];
+			this.keys = new byte[16][16];
 			for(int i = 0; i < schedule.length; ++i)
 			{
 				this.keys[i/16][i%16] = schedule[i];
+			}
+		}
+	}
+	
+	public class State
+	{
+		int round;
+		byte[] data;
+		byte[][] keys;
+
+		public State(byte[] data)
+		{
+			this.round = 0;
+			this.data = new byte[16];
+			for(int i = 0; i < 16; ++i)
+			{
+				this.data[i] = data[i];
+			}
+		}
+
+		public void apply(byte[] data)
+		{
+			for(int i = 0; i < 16; ++i)
+			{
+				this.data[i] = data[i];
 			}
 		}
 		
