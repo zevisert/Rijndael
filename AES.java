@@ -18,20 +18,7 @@ public class AES extends rijndael
         //abstracting input method, encrypt and decrypt just taking in lists of strings (32 bytes each)
         //reading bytes was messing with new lines chars 
         File tmpfile=  new File(argsList.get(2));
-        List<String> message = null;
-        
-        
-        try
-        {
-            message = Files.readAllLines(tmpfile.toPath());
-            System.out.println(message);
-            
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }
-        
+        byte[] inputBytes = bytesFromLine("b51fdcd646acade9af7661ad66e0218d");
         
 		for(String s : encryptCmds)
 		{
@@ -42,7 +29,7 @@ public class AES extends rijndael
 
 				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.encrypt(key, message);
+				cypher.encrypt(key, inputBytes);
 			}
 		}
 
@@ -55,11 +42,24 @@ public class AES extends rijndael
 
 				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.decrypt(key, message);
+				cypher.decrypt(key, inputBytes);
 			}
 		}
 	}
 
+    private static byte[] bytesFromLine (String s)
+    {        
+        int len = s.length();
+        byte[] lineBytes = new byte[16];
+        for (int i = 0 ; i < len; i += 2 )    
+        {
+            lineBytes[i/2] = (byte)((Character.digit(s.charAt(i),16) << 4) + Character.digit(s.charAt(i+1), 16));
+        }
+          
+        return lineBytes;
+    }
+    
+    
 	public static String bytesToHex(byte[] in) {
 	    final StringBuilder builder = new StringBuilder();
 	    for(byte b : in) {
@@ -68,14 +68,15 @@ public class AES extends rijndael
 	    return builder.toString();
 	}
 	
-	public void encrypt(byte[] key, List<String> chunks)
+	public void encrypt(byte[] key, byte[] inputBytes)
 	{
+        
 		System.out.println(">>> encrypting");
 		assert false : "Not implemented";
 		
         //for now just run this block every time, Keyexpansion and state recreation is getting call more than needed reduntant
         
-		for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)
+		/*for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)
         {
             //lines have 32 bytes, we are looking for 16 bytes.
             byte[] chunk = chunks.get(chunkNum).getBytes();
@@ -107,7 +108,7 @@ public class AES extends rijndael
             System.out.println(bytesToHex(state1.data));
             System.out.println(bytesToHex(state2.data));
         }
-
+*/
 	}
     
     //
@@ -131,11 +132,11 @@ public class AES extends rijndael
     }
 
     
-	public void decrypt(byte[] key, List<String> chunks)
+	public void decrypt(byte[] key, byte[] inputBytes)
 	{
 		System.out.println("<<< decrpyting");
 		assert false : "Not implemented";
-        
+        /*
         for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)       
         {
             byte[] chunk = chunks.get(chunkNum).getBytes();
@@ -164,7 +165,7 @@ public class AES extends rijndael
             System.out.println(bytesToHex(state1.data));
             System.out.println(bytesToHex(state2.data));
 		}
-        
+        */
 	}
     
     private void decryptCore(State state)
