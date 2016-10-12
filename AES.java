@@ -1,11 +1,8 @@
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Collections;
 
 public class AES extends rijndael
 {
@@ -58,20 +55,22 @@ public class AES extends rijndael
 		System.out.println(">>> encrypting");
 		assert false : "Not implemented";
 		
-		char[] buffer = new char[(int) plaintext.length()];
+		byte[] array = null;
 		
-		try (FileReader reader = new FileReader(plaintext)){
-			reader.read(buffer);
+		try {
+			array = Files.readAllBytes(plaintext.toPath());
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
-		String contents = new String(buffer);
+		byte[] chunk = new byte[16];
+		for (int i = 0; i < 16; ++i)
+		{
+			chunk[i] = (byte)array[i];
+		}
 		
-		String block = contents.substring(0, 16);
-		
-		State state = new State(block.getBytes());
+		State state = new State(chunk);
 		
 		state.keyExpansion(key);
 		
