@@ -14,7 +14,25 @@ public class AES extends rijndael
 		List<String> argsList = Arrays.asList(args);
 		List<String> encryptCmds = Arrays.asList("e", "encrypt");
 		List<String> decryptCmds = Arrays.asList("d", "decrypt");
-
+		
+        //abstracting input method, encrypt and decrypt just taking in lists of strings (32 bytes each)
+        //reading bytes was messing with new lines chars 
+        File tmpfile=  new File(argsList.get(2));
+        List<String> message = null;
+        
+        
+        try
+        {
+            message = Files.readAllLines(tmpfile.toPath());
+            System.out.println(message);
+            
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        
+        
 		for(String s : encryptCmds)
 		{
 			if (s.equalsIgnoreCase(argsList.get(0)))
@@ -24,7 +42,7 @@ public class AES extends rijndael
 
 				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.encrypt(key, file);
+				cypher.encrypt(key, message);
 			}
 		}
 
@@ -37,7 +55,7 @@ public class AES extends rijndael
 
 				File file = new File(argsList.get(2));
 				AES cypher = new AES();
-				cypher.decrypt(key, file);
+				cypher.decrypt(key, message);
 			}
 		}
 	}
@@ -50,31 +68,52 @@ public class AES extends rijndael
 	    return builder.toString();
 	}
 	
-	public void encrypt(byte[] key, File plaintext)
+	public void encrypt(byte[] key, List<String> chunks)
 	{
 		System.out.println(">>> encrypting");
 		assert false : "Not implemented";
 		
-		byte[] array = null;
+        //for now just run this block every time, Keyexpansion and state recreation is getting call more than needed reduntant
+        
+		for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)
+        {
+            //lines have 32 bytes, we are looking for 16 bytes.
+            byte[] chunk = chunks.get(chunkNum).getBytes();
+            //System.out.println(chunk);
+            byte[] subChunk1 = new byte[16];
+            
+            //first half
+            for (int i = 0; i < 16; ++i)
+            {
+                subChunk1[i] = (byte)chunk[i];
+            }
 		
-		try {
-			array = Files.readAllBytes(plaintext.toPath());
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+            //second half
+            byte[] subChunk2 = new byte[16];
+            for (int i = 0; i < 16; ++i)
+            {
+                subChunk2[i] = (byte)chunk[i+16];
+            }
+        
+            State state1 = new State(subChunk1);
+            state1.keyExpansion(key);
+            
+            State state2 = new State(subChunk2);
+            state2.keyExpansion(key);
+            
+            encryptCore(state1);
+            encryptCore(state2);
 		
-		byte[] chunk = new byte[16];
-		for (int i = 0; i < 16; ++i)
-		{
-			chunk[i] = (byte)array[i];
-		}
-		
-		State state = new State(chunk);
-		
-		state.keyExpansion(key);
-		
-		state.addRoundKey(state.keys[state.round]);
+            System.out.println(bytesToHex(state1.data));
+            System.out.println(bytesToHex(state2.data));
+        }
+
+	}
+    
+    //
+    private void encryptCore(State state)
+    {
+        state.addRoundKey(state.keys[state.round]);
 		int numberOfRounds = 10;
 		
 		for(state.round = 1; state.round < numberOfRounds; ++state.round)
@@ -83,64 +122,69 @@ public class AES extends rijndael
 			state.shiftRows();
 			state.mixColumns();
 			state.addRoundKey(state.keys[state.round]);
-
 		}
 		
 		// Final round
 		state.subBytes();
 		state.shiftRows();
 		state.addRoundKey(state.keys[state.round]);
-		
-		System.out.println(bytesToHex(state.data));
+    }
 
-	}
-
-	public void decrypt(byte[] key, File encrpyted)
+    
+	public void decrypt(byte[] key, List<String> chunks)
 	{
 		System.out.println("<<< decrpyting");
 		assert false : "Not implemented";
+        
+        for (int chunkNum = 0 ; chunkNum < chunks.size() ; chunkNum++)       
+        {
+            byte[] chunk = chunks.get(chunkNum).getBytes();
+            
+            byte[] subChunk1 = new byte[16];
+            for (int i = 0; i < 16; ++i)
+            {
+                subChunk1[i] = (byte)chunk[i];
+            }
 		
-
-		byte[] array = null;
+            byte[] subChunk2 = new byte[16];
+            for (int i = 0; i < 16; ++i)
+            {
+                subChunk2[i] = (byte)chunk[i+16];
+            }
+            
+            State state1 = new State(subChunk1);
+            state1.keyExpansion(key);
+            
+            State state2 = new State(subChunk2);
+            state2.keyExpansion(key);
 		
-		try {
-			array = Files.readAllBytes(encrpyted.toPath());
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+            decryptCore(state1);
+            decryptCore(state2);
+            
+            System.out.println(bytesToHex(state1.data));
+            System.out.println(bytesToHex(state2.data));
 		}
-		
-		
-		byte[] chunk = new byte[16];
-		for (int i = 0; i < 16; ++i)
-		{
-			chunk[i] = (byte)array[i];
-		}
-		
-		State state = new State(chunk);
-		
-		// Key Expansion
-		state.keyExpansion(key);
-		
-		int numberOfRounds = 10;
-					
-		state.addRoundKey(state.keys[numberOfRounds]);
-		
-		for(state.round = numberOfRounds - 1; state.round > 0; --state.round)
-		{
-			state.InverseShiftRows();
-			state.InverseSubBytes();
-			state.addRoundKey(state.keys[state.round]);
-			state.InverseMixColumns();
-		}
-		
-		// Final round
-
-		state.InverseShiftRows();
-		state.InverseSubBytes();
-
-		state.addRoundKey(state.keys[state.round]);
-		
-		System.out.println("output: " + new String(state.data));
+        
 	}
+    
+    private void decryptCore(State state)
+    {
+         int numberOfRounds = 10;
+					
+            state.addRoundKey(state.keys[numberOfRounds]);
+		
+            for(state.round = numberOfRounds - 1; state.round > 0; --state.round)
+            {
+                state.InverseShiftRows();
+                state.InverseSubBytes();
+                state.addRoundKey(state.keys[state.round]);
+                state.InverseMixColumns();
+            }
+		
+            // Final round
+            state.InverseShiftRows();
+            state.InverseSubBytes();
+
+            state.addRoundKey(state.keys[state.round]);
+    }
 }
