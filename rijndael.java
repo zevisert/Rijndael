@@ -198,6 +198,7 @@ public class rijndael {
 
 	}
 
+	// Class to allow expansion of the key once for the entire operation, rather than for every state
 	public class KeyExpander
 	{
 		byte[][] keys;
@@ -317,6 +318,7 @@ public class rijndael {
 		}
 	}
 	
+	// Tracks the round, data, and contains the steps as methods to encrypt and decrypt data 
 	public class State
 	{
 		int round;
@@ -350,6 +352,7 @@ public class rijndael {
 			apply(data);
 		}
 		
+		// Add round key - in gallois fields this is an XOR operation of a byte array
 		public void addRoundKey(byte[] key)
 		{
 			for (int i = 0; i < 16; ++i)
@@ -358,6 +361,7 @@ public class rijndael {
 			}
 		}
 		
+		// Replace the value of each byte in a substitution table with the byte in the table at the values index
 		public void subBytes()
 		{
 			for(int i = 0; i < 16; ++i)
@@ -366,14 +370,57 @@ public class rijndael {
 			}
 		}
 		
+		// Reverse the above by doing the same, but from an inversed table
+		public void InverseSubBytes()
+		{
+			for(int i = 0; i < 16; ++i)
+			{
+				this.data[i] = (byte)GALLOIS.invsBox[Byte.toUnsignedInt(this.data[i])];
+			}
+		}
+		
+		// When visualized as a 4x4 matrix with indicies increasing down the columns before rows,
+		// this method shifts rows by cyclically rotating each row by its zero based index 
 		public void shiftRows()
 		{
+			// Perform this in a temp array, so nothing is improperly overwritten during the transaction.
 			byte[] shift = new byte[16];	
+			
+			// In Java we write right to left, so our indicies look like:
+			//		 0,  1,  2,  3,
+			//		 4,  5,  6,  7,
+			//		 8,  9, 10, 11,
+			//		12, 13, 14, 15
+			// But the algorithm definition lays out the transposed table, so in Java we're actually shifting columns up. 
+			
 			byte[] index = {
-					0,  5, 10, 15,
-					4,  9, 14,  3,
-					8, 13,  2,  7,
+					 0,  5, 10, 15,
+					 4,  9, 14,  3,
+					 8, 13,  2,  7,
 					12,  1,  6, 11
+			};
+
+			// Copy the shifted data into the temp array
+			// Would use for each, but don't have a good way to index shift sequentially
+			for(int i = 0; i < 16; ++i)
+			{
+				shift[i] = this.data[index[i]];
+			}
+
+			this.apply(shift);
+		}
+		
+		// Reverse the shift operation described above
+		public void InverseShiftRows()
+		{
+			byte[] shift = new byte[16];
+			
+			// Shift columns up
+			byte[] index = {
+					0, 13, 10,  7,
+					4,  1, 14, 11,
+					8,  5,  2, 15,
+					12, 9,  6,  3
 			};
 
 			for(int i = 0; i < 16; ++i)
@@ -384,17 +431,21 @@ public class rijndael {
 			this.apply(shift);
 		}
 
+		// Most complex step, we're doing a matrix multiplication here.
 		public void mixColumns()
 		{
+			// Perform the mix in a temp array as to not overwrite data as processed
 			byte[] mix = new byte[16];
 			
+			// Can do it one column at a time since we're using a temp array.
 			for (int col = 0; col < 4; ++col) {
-				int idx0 = 0 + 4*col;
-				int idx1 = 1 + 4*col;
-				int idx2 = 2 + 4*col;
-				int idx3 = 3 + 4*col;
+				// Indicies for the columns of this.data, and for rows of the predefined matrix 
+				int idx0 = 0 + 4*col; // 0 1 2 3
+				int idx1 = 1 + 4*col; // 4 5 6 7
+				int idx2 = 2 + 4*col; // 8 9 A B
+				int idx3 = 3 + 4*col; // C D E F
 				
-				// Matrix multiplication of state.data by:
+				// Matrix multiplication of this.data by:
 				// | 2 3 1 1 |
 				// | 1 2 3 1 |
 				// | 1 1 2 3 | 
@@ -424,9 +475,11 @@ public class rijndael {
 							^ this.data[idx2]             
 							^ GALLOIS.mul2[Byte.toUnsignedInt(this.data[idx3])]);
 			}
+			
 			this.apply(mix);
 		}
 		
+		// Reverse the above matrix, using a specialized matrix that reverses matrix multiplication over a gallois field
 		public void InverseMixColumns()
 		{
 			byte[] mix = new byte[16];
@@ -465,32 +518,6 @@ public class rijndael {
 						^ GALLOIS.mul14[Byte.toUnsignedInt(this.data[idx3])]);
 			}
 			this.apply(mix);
-		}
-		
-		public void InverseShiftRows()
-		{
-			byte[] shift = new byte[16];	
-			byte[] index = {
-					0, 13, 10,  7,
-					4,  1, 14, 11,
-					8,  5,  2, 15,
-					12, 9,  6,  3
-			};
-
-			for(int i = 0; i < 16; ++i)
-			{
-				shift[i] = this.data[index[i]];
-			}
-
-			this.apply(shift);
-		}
-		
-		public void InverseSubBytes()
-		{
-			for(int i = 0; i < 16; ++i)
-			{
-				this.data[i] = (byte)GALLOIS.invsBox[Byte.toUnsignedInt(this.data[i])];
-			}
 		}
 	}
 }
