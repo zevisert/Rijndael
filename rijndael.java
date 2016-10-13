@@ -1,7 +1,28 @@
 public class rijndael {
 
+	private static class GALLOIS {
 		
-	public static class MUL_TABLES {
+		// Instead of using lookup table, you could just compute multiplications using this
+		@SuppressWarnings("unused")
+		public static byte Gallois(int a, short b)
+		{
+			byte p = 0;
+			byte counter;
+			byte hi_bit_set;
+			for (counter = 0; counter < 8; counter++) {
+				if ((b & 1) != 0) {
+					p ^= a;
+				}
+				hi_bit_set = (byte) (a & 0x80);
+				a <<= 1;
+				if (hi_bit_set != 0) {
+					a ^= 0x1b; /* x^8 + x^4 + x^3 + x + 1 */
+				}	
+				b >>= 1;
+			}
+			return p;
+		}
+		
 		static final short sBox[] = 
 		{
 			0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -188,23 +209,24 @@ public class rijndael {
 		
 		private void keyExpansionCore(byte[] in, int round)
 		{
-			// Rotate
+			// Rotate step, careful about endianness defined in the algo
 			byte low = in[0];
 			in[0] = in[1];
 			in[1] = in[2];
 			in[2] = in[3];
 			in[3] = low;
 			
-			// sbox
-			in[0] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(in[0])];
-			in[1] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(in[1])];
-			in[2] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(in[2])];
-			in[3] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(in[3])];
+			// sbox step
+			in[0] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(in[0])];
+			in[1] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(in[1])];
+			in[2] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(in[2])];
+			in[3] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(in[3])];
 			
-			in[0] ^= (byte)MUL_TABLES.rcon[round]; 
+			// rcon step
+			in[0] ^= (byte)GALLOIS.rcon[round]; 
 		}
 		
-		public void keyExpansion(byte[] initialKey)
+		private void keyExpansion(byte[] initialKey)
 		{
 			byte[] schedule = new byte[32 + 14*16];
 			
@@ -217,7 +239,7 @@ public class rijndael {
 			int bytesGenerated = 32;
 			int rconIteration = 1;
 			
-			
+			// 256 bit key expansion
 			while( bytesGenerated < schedule.length)
 			{
 				byte[] temp = new byte[4];
@@ -260,7 +282,7 @@ public class rijndael {
 				// S box each of these
 				for (int j = 0; j < 4; ++j)
 				{
-					temp[j] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(temp[j])];
+					temp[j] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(temp[j])];
 				}
 				
 				// XOR Group of next 4 bytes with previous
@@ -298,25 +320,34 @@ public class rijndael {
 	public class State
 	{
 		int round;
-		byte[] data;
-		byte[][] keys;
+		private byte[] data;
+		private byte[][] keys;
 
-		public State(byte[] data)
-		{
-			this.round = 0;
-			this.data = new byte[16];
-			for(int i = 0; i < 16; ++i)
-			{
-				this.data[i] = data[i];
-			}
+		public byte[] getKey(int i) {
+			if (i >= 0 && i < keys.length)
+				return keys[i];
+			else return null;
 		}
-
+		
+		public byte[] getData()
+		{
+			return this.data.clone();
+		}
+		
 		public void apply(byte[] data)
 		{
 			for(int i = 0; i < 16; ++i)
 			{
 				this.data[i] = data[i];
 			}
+		}
+
+		public State(byte[] data, byte[][] keys)
+		{
+			this.round = 0;
+			this.data = new byte[16];
+			this.keys = keys;
+			apply(data);
 		}
 		
 		public void addRoundKey(byte[] key)
@@ -331,7 +362,7 @@ public class rijndael {
 		{
 			for(int i = 0; i < 16; ++i)
 			{
-				this.data[i] = (byte)MUL_TABLES.sBox[Byte.toUnsignedInt(this.data[i])];
+				this.data[i] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(this.data[i])];
 			}
 		}
 		
@@ -353,26 +384,6 @@ public class rijndael {
 			this.apply(shift);
 		}
 
-		@SuppressWarnings("unused")
-		private byte Gallois(int a, short b)
-		{
-			byte p = 0;
-			byte counter;
-			byte hi_bit_set;
-			for (counter = 0; counter < 8; counter++) {
-				if ((b & 1) != 0) {
-					p ^= a;
-				}
-				hi_bit_set = (byte) (a & 0x80);
-				a <<= 1;
-				if (hi_bit_set != 0) {
-					a ^= 0x1b; /* x^8 + x^4 + x^3 + x + 1 */
-				}	
-				b >>= 1;
-			}
-			return p;
-		}
-
 		public void mixColumns()
 		{
 			byte[] mix = new byte[16];
@@ -390,28 +401,28 @@ public class rijndael {
 				// | 3 1 1 2 |
 
 				mix[idx0] = (byte)
-							 (MUL_TABLES.mul2[Byte.toUnsignedInt(this.data[idx0])]
-							^ MUL_TABLES.mul3[Byte.toUnsignedInt(this.data[idx1])]
+							 (GALLOIS.mul2[Byte.toUnsignedInt(this.data[idx0])]
+							^ GALLOIS.mul3[Byte.toUnsignedInt(this.data[idx1])]
 							^ this.data[idx2]
 							^ this.data[idx3]);
 				
 				mix[idx1] = (byte)
 							 (this.data[idx0]
-							^ MUL_TABLES.mul2[Byte.toUnsignedInt(this.data[idx1])]
-							^ MUL_TABLES.mul3[Byte.toUnsignedInt(this.data[idx2])] 
+							^ GALLOIS.mul2[Byte.toUnsignedInt(this.data[idx1])]
+							^ GALLOIS.mul3[Byte.toUnsignedInt(this.data[idx2])] 
 							^ this.data[idx3]);
 				
 				mix[idx2] = (byte)
 							 (this.data[idx0]
 							^ this.data[idx1]
-							^ MUL_TABLES.mul2[Byte.toUnsignedInt(this.data[idx2])] 
-							^ MUL_TABLES.mul3[Byte.toUnsignedInt(this.data[idx3])]);
+							^ GALLOIS.mul2[Byte.toUnsignedInt(this.data[idx2])] 
+							^ GALLOIS.mul3[Byte.toUnsignedInt(this.data[idx3])]);
 				
 				mix[idx3] = (byte)
-							 (MUL_TABLES.mul3[Byte.toUnsignedInt(this.data[idx0])]
+							 (GALLOIS.mul3[Byte.toUnsignedInt(this.data[idx0])]
 							^ this.data[idx1]
 							^ this.data[idx2]             
-							^ MUL_TABLES.mul2[Byte.toUnsignedInt(this.data[idx3])]);
+							^ GALLOIS.mul2[Byte.toUnsignedInt(this.data[idx3])]);
 			}
 			this.apply(mix);
 		}
@@ -433,25 +444,25 @@ public class rijndael {
 				// | 11 13  9 14 |
 
 				mix[idx0] = (byte)
-						 (MUL_TABLES.mul14[Byte.toUnsignedInt(this.data[idx0])]
-						^ MUL_TABLES.mul11[Byte.toUnsignedInt(this.data[idx1])]
-						^ MUL_TABLES.mul13[Byte.toUnsignedInt(this.data[idx2])]
-						^ MUL_TABLES.mul9 [Byte.toUnsignedInt(this.data[idx3])]);
+						 (GALLOIS.mul14[Byte.toUnsignedInt(this.data[idx0])]
+						^ GALLOIS.mul11[Byte.toUnsignedInt(this.data[idx1])]
+						^ GALLOIS.mul13[Byte.toUnsignedInt(this.data[idx2])]
+						^ GALLOIS.mul9 [Byte.toUnsignedInt(this.data[idx3])]);
 				mix[idx1] = (byte)
-						 (MUL_TABLES.mul9 [Byte.toUnsignedInt(this.data[idx0])]
-						^ MUL_TABLES.mul14[Byte.toUnsignedInt(this.data[idx1])]
-						^ MUL_TABLES.mul11[Byte.toUnsignedInt(this.data[idx2])]
-						^ MUL_TABLES.mul13[Byte.toUnsignedInt(this.data[idx3])]);
+						 (GALLOIS.mul9 [Byte.toUnsignedInt(this.data[idx0])]
+						^ GALLOIS.mul14[Byte.toUnsignedInt(this.data[idx1])]
+						^ GALLOIS.mul11[Byte.toUnsignedInt(this.data[idx2])]
+						^ GALLOIS.mul13[Byte.toUnsignedInt(this.data[idx3])]);
 				mix[idx2] = (byte)
-						 (MUL_TABLES.mul13[Byte.toUnsignedInt(this.data[idx0])]
-						^ MUL_TABLES.mul9 [Byte.toUnsignedInt(this.data[idx1])]
-						^ MUL_TABLES.mul14[Byte.toUnsignedInt(this.data[idx2])]
-						^ MUL_TABLES.mul11[Byte.toUnsignedInt(this.data[idx3])]);
+						 (GALLOIS.mul13[Byte.toUnsignedInt(this.data[idx0])]
+						^ GALLOIS.mul9 [Byte.toUnsignedInt(this.data[idx1])]
+						^ GALLOIS.mul14[Byte.toUnsignedInt(this.data[idx2])]
+						^ GALLOIS.mul11[Byte.toUnsignedInt(this.data[idx3])]);
 				mix[idx3] = (byte)
-						 (MUL_TABLES.mul11[Byte.toUnsignedInt(this.data[idx0])]
-						^ MUL_TABLES.mul13[Byte.toUnsignedInt(this.data[idx1])]
-						^ MUL_TABLES.mul9 [Byte.toUnsignedInt(this.data[idx2])]
-						^ MUL_TABLES.mul14[Byte.toUnsignedInt(this.data[idx3])]);
+						 (GALLOIS.mul11[Byte.toUnsignedInt(this.data[idx0])]
+						^ GALLOIS.mul13[Byte.toUnsignedInt(this.data[idx1])]
+						^ GALLOIS.mul9 [Byte.toUnsignedInt(this.data[idx2])]
+						^ GALLOIS.mul14[Byte.toUnsignedInt(this.data[idx3])]);
 			}
 			this.apply(mix);
 		}
@@ -478,7 +489,7 @@ public class rijndael {
 		{
 			for(int i = 0; i < 16; ++i)
 			{
-				this.data[i] = (byte)MUL_TABLES.invsBox[Byte.toUnsignedInt(this.data[i])];
+				this.data[i] = (byte)GALLOIS.invsBox[Byte.toUnsignedInt(this.data[i])];
 			}
 		}
 	}

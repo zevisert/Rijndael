@@ -8,8 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.xml.bind.ValidationException;
-
 public class AES extends rijndael
 {
 
@@ -96,7 +94,7 @@ public class AES extends rijndael
 		}
 		catch (Exception e)
 		{
-			System.out.println(e.toString());
+			e.printStackTrace();
 			System.exit(-1);
 		}
 	}
@@ -112,12 +110,11 @@ public class AES extends rijndael
 
 		for (byte[] block : data)
 		{
-			State state = new State(block);
-			state.keys = ke.keys;
+			State state = new State(block, ke.keys);
 			encryptCore(state);
 			
 			// Save the output encrypted text for this transaction to write to the output file later.
-			output.add(bytesToHexString(state.data));
+			output.add(bytesToHexString(state.getData()));
 		}
 
 		return output;
@@ -130,7 +127,7 @@ public class AES extends rijndael
 		final int numberOfRounds = 14;
 		
 		// Initial round, key expansion already happened
-		state.addRoundKey(state.keys[state.round]);
+		state.addRoundKey(state.getKey(state.round));
 		
 		// The remaining rounds 
 		for(state.round = 1; state.round < numberOfRounds; ++state.round)
@@ -138,13 +135,13 @@ public class AES extends rijndael
 			state.subBytes();
 			state.shiftRows();
 			state.mixColumns();
-			state.addRoundKey(state.keys[state.round]);
+			state.addRoundKey(state.getKey(state.round));
 		}
 
 		// Final round
 		state.subBytes();
 		state.shiftRows();
-		state.addRoundKey(state.keys[state.round]);
+		state.addRoundKey(state.getKey(state.round));
 	}
 
 	// decryption routine /////////////////////////////////////////////////////
@@ -158,12 +155,11 @@ public class AES extends rijndael
 
 		for (byte[] block : data)
 		{
-			State state = new State(block);
-			state.keys = ke.keys;
+			State state = new State(block, ke.keys);
 			decryptCore(state);
 
 			// Save the output plaintext for this transaction to write to the output file later.
-			output.add(bytesToHexString(state.data));
+			output.add(bytesToHexString(state.getData()));
 		}
 
 		return output;
@@ -174,13 +170,13 @@ public class AES extends rijndael
 		// Reverse of encryptCore
 		final int numberOfRounds = state.round = 14;
 		
-		state.addRoundKey(state.keys[state.round]);
+		state.addRoundKey(state.getKey(state.round));
 
 		for(state.round = numberOfRounds - 1; state.round > 0; --state.round)
 		{
 			state.InverseShiftRows();
 			state.InverseSubBytes();
-			state.addRoundKey(state.keys[state.round]);
+			state.addRoundKey(state.getKey(state.round));
 			state.InverseMixColumns();
 		}
 
@@ -188,7 +184,7 @@ public class AES extends rijndael
 		state.InverseShiftRows();
 		state.InverseSubBytes();
 
-		state.addRoundKey(state.keys[state.round]);
+		state.addRoundKey(state.getKey(state.round));
 	}
 	
 	// Helpers ////////////////////////////////////////////////////////////////
