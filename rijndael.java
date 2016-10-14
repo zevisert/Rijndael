@@ -229,83 +229,67 @@ public class rijndael {
 		
 		private void keyExpansion(byte[] initialKey)
 		{
-			byte[] schedule = new byte[32 + 14*16];
+			final int n = 32; // 32 for AES-256
+			final int b = 240; // 240 for AES-256
+			byte[] schedule = new byte[n - 16 + b];
 			
-			// First 16 bytes are same as the key
-			for(int i = 0; i < 32; ++i)
+			// First n bytes are same as the key
+			for(int i = 0; i < n; ++i)
 			{
 				schedule[i] = initialKey[i];
 			}
 			
-			int bytesGenerated = 32;
+			int bytesGenerated = n;
 			int rconIteration = 1;
 			
 			// 256 bit key expansion
-			while( bytesGenerated < schedule.length)
+			while( bytesGenerated < b)
 			{
+				// 1. Create a new 4 byte working variable temp
 				byte[] temp = new byte[4];
-				// Assign previous 4 bytes to temp
-				for(int j = 0; j < 4; ++j)
+				// 2. Previous 4 bytes are assigned to temp
+				for (int i = 0; i < 4; ++i)
 				{
-					temp[j] = schedule[j + bytesGenerated - 4];
+					temp[i] = schedule[bytesGenerated + i - 4];
 				}
 				
-				this.keyExpansionCore(temp, rconIteration++);
+				// We arrive at this point every 16 bytes.
 				
-				for(int j = 0; j < 4; ++j)
-				{
-					schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + j] ^ temp[j]);
-					bytesGenerated++;
+				// At the beginning of each 32 byte chunk run the core, otherwise run the sbox 
+				if (bytesGenerated % n == 0){
+					keyExpansionCore(temp, rconIteration);
+					rconIteration += 1;
 				}
-				
-				// Create the next 12 bytes
-				for (int j = 0; j < 3; ++j)
-				{
-					// Assign previous 4 bytes to temp
-					for(int k = 0; k < 4; ++k)
+				else{
+					// Run each byte through the S-box
+					for (int i = 0; i < 4; ++i)
 					{
-						temp[k] = schedule[k + bytesGenerated - 4];
+						temp[i] = (byte) GALLOIS.sBox[Byte.toUnsignedInt(temp[i])];
 					}
-					// XOR Group of next 4 bytes with previous
-					for(int k = 0; k < 4; ++k)
-					{
-						schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + k] ^ temp[k]);
-						bytesGenerated++;
-					}
+
 				}
+				// XOR temp with the 4-byte block n bytes before the new expanded key. This becomes the next 4 bytes.
+				for (int i = 0; i < 4; ++i)
+				{
+					schedule[bytesGenerated + i] = (byte) (temp[i] ^ schedule[bytesGenerated + i - n]);
+				}
+				bytesGenerated += 4;
 				
-				// Create the next 4 bytes
-				// Assign previous 4 bytes to temp
-				for(int j = 0; j < 4; ++j)
+				// Do three times to create 12 more bytes finishing each iteration of the while loop with 16 bytes created
+				for (int k = 0; k < 3; ++k)
 				{
-					temp[j] = schedule[j + bytesGenerated - 4];
-				}
-				// S box each of these
-				for (int j = 0; j < 4; ++j)
-				{
-					temp[j] = (byte)GALLOIS.sBox[Byte.toUnsignedInt(temp[j])];
-				}
-				
-				// XOR Group of next 4 bytes with previous
-				for(int j = 0; j < 4; ++j)
-				{
-					schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + j] ^ temp[j]);
-					bytesGenerated++;
-				}
-				
-				// Another 12 bytes in groups of 4
-				for (int j = 0; j < 3; ++j)
-				{
-					for(int k = 0; k < 4; ++k)
+					// 1. Assign previous 4 bytes to temp
+					for (int i = 0; i < 4; ++i)
 					{
-						temp[k] = schedule[k + bytesGenerated - 4];
+						temp[i] = schedule[bytesGenerated + i - 4];
 					}
-					// XOR Group of next 4 bytes with previous
-					for(int k = 0; k < 4; ++k)
+					
+					// 2. XOR temp with the 4-byte block n bytes before the new expanded key. This becomes the next 4 bytes.
+					for (int i = 0; i < 4; ++i)
 					{
-						schedule[bytesGenerated] = (byte) (schedule[bytesGenerated - 32 + k] ^ temp[k]);
-						bytesGenerated++;
+						schedule[bytesGenerated + i] = (byte) (temp[i] ^ schedule[bytesGenerated + i - n]);
 					}
+					bytesGenerated += 4;
 				}
 			}
 			
